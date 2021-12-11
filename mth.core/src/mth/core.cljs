@@ -39,7 +39,9 @@
 
 ;; Functions to update app state.
 
-(defonce app-state (atom {}))
+(def instructions "Choose a math practice:")
+
+(defonce app-state (atom {:text instructions}))
 
 (defn click-practice [practice]
   (let [state @app-state]
@@ -47,15 +49,30 @@
      app-state
      (-> state
          (assoc :practice practice)
-         (assoc :problem (new-problem practice))))))
+         (assoc :problem (new-problem practice))
+         (assoc :text (:description practice))))))
+
+(defn correct [state]
+  (let [score (+ 3 (:score state))]
+    (-> state
+        (assoc :score score)
+        (assoc :problem (new-problem (:practice state)))
+        (assoc :text (str "Correct! +3. Your score is " (str score) ".")))))
+
+(defn incorrect [state response]
+  (let [score (max 0 (- (:score state) 1))]
+    (-> state
+        (assoc :score score)
+        (assoc-in [:problem :response] response)
+        (assoc :text (str "Incorrect. -1. Your score is " (str score) ".")))))
 
 (defn click-response [response]
   (let [state @app-state]
     (reset!
      app-state
      (if (= (get-in state [:problem :answer]) response)
-       (assoc state :problem (new-problem (:practice state))) ; correct
-       (assoc-in state [:problem :response] response)))))     ; incorrect
+       (correct state)
+       (incorrect state response)))))
 
 
 ;; Functions to display the app and current problem.
@@ -64,25 +81,31 @@
   (gdom/getElement "app"))
 
 (defn render-choice [choice]
-  [:li {:on-click #(click-response choice)} choice])
+  [:li
+   [:h1 [:a {:style {:color "blue"}
+             :on-click #(click-response choice)} choice]]])
                                         
 (defn render-choices [problem]
-  (into [:ul] (for [c (:choices problem)]
-                (render-choice c))))
+  [:ul {:style {:list-style "none"}}
+   (for [c (:choices problem)]
+     (render-choice c))])
 
 (defmulti render-problem :key)
 
 (defmethod render-problem :adding-double-digits [problem]
   [:div
-   [:span (:a problem) "+" (:b problem) "="]
+   [:span {:style {:font-size "60px"}} (:a problem) " + " (:b problem) " ="]
    [render-choices problem]])
 
 (defn render-practice [practice]
   [:div
-   [:span [:a {:on-click #(click-practice practice)} (:description practice)]]])
+   [:h1 [:a {:style {:color "blue"}
+             :on-click #(click-practice practice)} (:description practice)]]])
 
 (defn render-practice-selection []
-  (into [:div] (map render-practice practices)))
+  [:div
+   [:ul {:style {:list-style "none"}}
+    (map render-practice practices)]])
 
 (defn app []
   (let [state @app-state]
